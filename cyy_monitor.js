@@ -4,6 +4,7 @@ window.logInfo = {};
 window.logInfo.openTime = performance.timing.navigationStart;
 // 页面白屏时间
 window.logInfo.whiteScreenTime = +new Date() - window.logInfo.openTime;
+// 设备类型
 window.logInfo.mobile = mobileType();
 
 let defaults = {
@@ -25,14 +26,16 @@ document.addEventListener('DOMContentLoaded', function (event) {
 
 window.onload = function () {
     window.logInfo.allloadTime = +new Date() - window.logInfo.openTime;
-    window.logInfo.nowTime = new Date().getTime();
+    window.logInfo.nowTime = +new Date();
+
     let timname = {
         whiteScreenTime: '白屏时间',
         readyTime: '用户可操作时间',
         allloadTime: '总下载时间',
         mobile: '使用设备',
-        nowTime: '时间',
+        nowTime: '当前时间',
     };
+
     let logStr = '';
     for (let i in timname) {
         console.warn(timname[i] + ':' + window.logInfo[i] + 'ms');
@@ -41,7 +44,6 @@ window.onload = function () {
         } else {
             logStr += '&' + i + '=' + window.logInfo[i];
         }
-
     }
     (new Image()).src = '/action?' + logStr;
 };
@@ -97,7 +99,7 @@ function mobileType() {
         presto: u.indexOf('Presto') > -1, //opera内核
         webKit: u.indexOf('AppleWebKit') > -1, //苹果、谷歌内核
         gecko: u.indexOf('Gecko') > -1 && u.indexOf('KHTML') == -1, //火狐内核
-        mobile: !!u.match(/AppleWebKit.*Mobile/i) || !!u.match(/MIDP|SymbianOS|NOKIA|SAMSUNG|LG|NEC|TCL|Alcatel|BIRD|DBTEL|Dopod|PHILIPS|HAIER|LENOVO|MOT-|Nokia|SonyEricsson|SIE-|Amoi|ZTE/), //是否为移动终端
+        mobile: !!u.match(/AppleWebKit.*Mobile/i) || !!u.match(/xiaomi|samsung|huawei|oppo|vivo|moto|360|oneplus|smartisan|nubia|meizu|sony|nokia|htc|zte/), //是否为移动终端
         webApp: u.indexOf('Safari') == -1 //是否web应该程序，没有头部与底部
     };
     const lists = Object.keys(type);
