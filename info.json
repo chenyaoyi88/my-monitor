@@ -1,0 +1,17 @@
+{
+    "targetUrl": {
+        "url": "",
+        "pageLoadInfo": {
+            "device": null,
+            "openTime": "",
+            "whiteScreenTime": "",
+            "readyTime": "",
+            "allloadTime": "",
+            "nowTime": ""
+        },
+        "errorInfo": {
+            "js": [],
+            "res": []
+        }
+    }
+}

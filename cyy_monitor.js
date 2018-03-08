@@ -83,13 +83,13 @@
 
     function openReplacement() {
         // 获取 open 参数
-        console.log('open', arguments);
+        // console.log('open', arguments);
         return open.apply(this, arguments);
     }
 
     function sendReplacement() {
         // 获取 send 参数
-        console.log('send', arguments);
+        // console.log('send', arguments);
         return send.apply(this, arguments);
     }
 
@@ -99,8 +99,25 @@
 
 })();
 
-// 统计页面加载时间
-window.logInfo = {
+let logUploadHost = '';
+
+if (/((http(s)?:\/\/)?\d+\.\d+\.\d+\.\d+)|(localhost)(:\d+(\/)?)/ig.test(window.location.host)) {
+    logUploadHost = '//10.2.10.227:8300';
+} else {
+    logUploadHost = '//' + window.location.host;
+}
+
+const logUploadUrl = {
+    // 加载信息
+    load: logUploadHost + '/msg_load',
+    // 错误信息
+    error: logUploadHost + '/msg_error',
+    // 请求信息
+    http: logUploadHost + '/msg_http',
+}
+
+// 页面加载信息
+let pageLoadInfo = {
     // 设备类型
     device: null,
     // 页面初始化
@@ -115,46 +132,32 @@ window.logInfo = {
     nowTime: ''
 };
 
-let logRequestHost = '';
+// http 请求信息
+let httpInfo = {
+    // 请求
+    req: [],
+    // 响应
+    res: []
+};
 
-if (/((http(s)?:\/\/)?\d+\.\d+\.\d+\.\d+)|(localhost)(:\d+(\/)?)/ig.test(window.location.host)) {
-    logRequestHost = '//10.2.10.227:8300';
-} else {
-    logRequestHost = '//' + window.location.host;
-}
-
-const logUrl = {
-    // 加载信息
-    load: logRequestHost + '/msg_load',
-    // 错误信息
-    error: logRequestHost + '/msg_error',
-    // 请求信息
-    http: logRequestHost + '/msg_http',
-}
+// 错误信息
+let errorInfo = {
+    // js错误
+    js: [],
+    // 资源错误
+    res: [],
+};
 
 // 页面初始化
-window.logInfo.openTime = performance.timing.navigationStart;
+pageLoadInfo.openTime = performance.timing.navigationStart;
 // 页面白屏时间
-window.logInfo.whiteScreenTime = +new Date() - window.logInfo.openTime;
+pageLoadInfo.whiteScreenTime = +new Date() - pageLoadInfo.openTime;
 // 设备类型
-window.logInfo.device = getDevice();
-
-let defaults = {
-    // 错误的具体信息
-    msg: '',
-    // 错误所在的url
-    url: '',
-    // 错误所在的行
-    line: '',
-    // 错误所在的列
-    col: '',
-    // 时间
-    nowTime: ''
-};
+pageLoadInfo.device = getDevice();
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function (event) {
-    window.logInfo.readyTime = +new Date() - window.logInfo.openTime;
+    pageLoadInfo.readyTime = +new Date() - pageLoadInfo.openTime;
 });
 
 // 资源加载错误 css js img
@@ -162,67 +165,93 @@ document.addEventListener('error', function (ev) {
     const oEvent = ev || event;
     const oTarget = oEvent.srcElement || oEvent.target;
     const path = oTarget.src || oTarget.href;
-    console.log(oTarget);
+    const resLoadErrorInfo = {
+        path: path,
+        nowTime: +new Date()
+    };
+    errorInfo.res.push(resLoadErrorInfo);
+
+    console.log(errorInfo);
 }, true);
 
 // 监听 ajax 请求
 window.addEventListener('ajaxReadyStateChange', function (e) {
-    console.log(e.detail); // XMLHttpRequest Object
+    // console.log(e.detail); // XMLHttpRequest Object
+});
+
+// 移动端关闭窗口响应（PC 端 chrome 暂时无法监听）
+window.addEventListener('pagehide', function (event) {
+    uploadData();
 });
 
 window.onload = function () {
-    window.logInfo.allloadTime = +new Date() - window.logInfo.openTime;
-    window.logInfo.nowTime = +new Date();
+    pageLoadInfo.allloadTime = +new Date() - pageLoadInfo.openTime;
+    pageLoadInfo.nowTime = +new Date();
 
-    let timeName = {
-        whiteScreenTime: '白屏时间',
-        readyTime: '用户可操作时间',
-        allloadTime: '总下载时间',
-        device: '设备名称',
-        nowTime: '当前时间',
-    };
-
-    let logStr = '';
-    for (let i in timeName) {
-        logStr += '&' + i + '=' + window.logInfo[i];
-        // console.warn(timeName[i] + ':' + window.logInfo[i] + 'ms');
-    }
-    (new Image()).src = logUrl.load + '?' + logStr;
+    requsetData({
+        url: logUploadUrl.load,
+        type: 'post',
+        data: pageLoadInfo
+    });
 };
 
 window.onerror = function (msg, url, line, col, error) {
 
     col = col || (window.event && window.event.errorCharacter) || 0;
 
-    defaults.url = url;
-    defaults.line = line;
-    defaults.col = col;
-    defaults.nowTime = new Date().getTime();
+    let jsErrorInfo = {
+        // 错误的具体信息
+        msg: '',
+        // 错误所在的url
+        url: '',
+        // 错误所在的行
+        line: '',
+        // 错误所在的列
+        col: '',
+        // 时间
+        nowTime: ''
+    };
+
+    jsErrorInfo.url = url;
+    jsErrorInfo.line = line;
+    jsErrorInfo.col = col;
+    jsErrorInfo.nowTime = new Date().getTime();
 
     if (error && error.stack) {
         // 如果浏览器有堆栈信息，直接使用
-        defaults.msg = error.stack.toString();
-
+        jsErrorInfo.msg = error.stack.toString();
     } else if (arguments.callee) {
         // 尝试通过callee拿堆栈信息
         let ext = [];
         let fn = arguments.callee.caller;
+        // 这里只拿三层堆栈信息
         let floor = 3;
         while (fn && (--floor > 0)) {
             ext.push(fn.toString());
             if (fn === fn.caller) {
+                // 如果有环
                 break;
             }
             fn = fn.caller;
         }
         ext = ext.join(',');
-        defaults.msg = error.stack.toString();
+        // 合并上报的数据，包括默认上报的数据和自定义上报的数据
+        jsErrorInfo.msg = error.stack.toString();
     }
 
-    ajax({
-        url: logUrl.error,
-        type: 'post',
-        data: defaults
+    errorInfo.js.push(jsErrorInfo);
+
+    console.log(errorInfo);
+}
+
+setInterval(function () {
+    uploadData();
+}, 1000 * 20);
+
+function uploadData() {
+    requsetData({
+        url: logUploadUrl.error,
+        data: errorInfo
     });
 }
 
@@ -255,37 +284,19 @@ function getDevice() {
     }
 }
 
-function json2url(json) {
-    json.t = Math.random();
-    var arr = [];
-    for (var name in json) {
-        arr.push(name + "=" + encodeURIComponent(json[name]));
-    }
-    return arr.join("&");
-}
-
-function ajax(options) {
+function requsetData(options) {
     options = options || {};
     if (!options.url) {
         return;
     }
-    options.type = options.type || "get";
     options.data = options.data || {};
     options.timeout = options.timeout || 0;
 
     var xhr = new XMLHttpRequest();
 
-    var str = json2url(options.data);
-
-    if (options.type == "get") {
-        xhr.open("get", options.url + "?" + str, true);
-        xhr.send();
-    } else {
-        xhr.open("post", options.url, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.send(str);
-
-    }
+    xhr.open('POST', options.url, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify(options.data));
 
     //4 接收
     xhr.onreadystatechange = function () {
