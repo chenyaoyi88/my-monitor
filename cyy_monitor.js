@@ -113,13 +113,15 @@ const logUploadUrl = {
     // 错误信息
     error: logUploadHost + '/msg_error',
     // 请求信息
-    http: logUploadHost + '/msg_http',
+    http: logUploadHost + '/msg_http'
 }
+
+let timer = null;
 
 // 页面加载信息
 let pageLoadInfo = {
     // 设备类型
-    device: null,
+    device: '',
     // 页面初始化
     openTime: '',
     // 页面白屏时间
@@ -146,6 +148,8 @@ let errorInfo = {
     js: [],
     // 资源错误
     res: [],
+    // http
+    http: []
 };
 
 // 页面初始化
@@ -169,28 +173,23 @@ document.addEventListener('error', function (ev) {
         path: path,
         nowTime: +new Date()
     };
+
+    for (let item of errorInfo.res) {
+        if (item.path === resLoadErrorInfo.path) {
+            return;
+        }
+    }
     errorInfo.res.push(resLoadErrorInfo);
 
-    console.log(errorInfo);
 }, true);
 
-// 监听 ajax 请求
-window.addEventListener('ajaxReadyStateChange', function (e) {
-    // console.log(e.detail); // XMLHttpRequest Object
-});
-
-// 移动端关闭窗口响应（PC 端 chrome 暂时无法监听）
-window.addEventListener('pagehide', function (event) {
-    uploadData();
-});
-
+// 页面加载完成提交加载数据
 window.onload = function () {
     pageLoadInfo.allloadTime = +new Date() - pageLoadInfo.openTime;
     pageLoadInfo.nowTime = +new Date();
 
     requsetData({
         url: logUploadUrl.load,
-        type: 'post',
         data: pageLoadInfo
     });
 };
@@ -239,19 +238,89 @@ window.onerror = function (msg, url, line, col, error) {
         jsErrorInfo.msg = error.stack.toString();
     }
 
+    for (let item of errorInfo.js) {
+        if (item.col === jsErrorInfo.col && item.line === jsErrorInfo.line) {
+            return;
+        }
+    }
     errorInfo.js.push(jsErrorInfo);
-
-    console.log(errorInfo);
 }
 
-setInterval(function () {
-    uploadData();
+// 监听 ajax 请求
+window.addEventListener('ajaxReadyStateChange', function (e) {
+    var xhr = e.detail;
+
+    if (xhr.readyState == 4) {
+        let responseJson = {};
+        // 完成
+        if (xhr.status >= 200 && xhr.status < 300 || xhr.status == 304) {
+            if (xhr.responseType === '' || xhr.responseType === 'text') {
+                if (xhr.responseURL.indexOf(logUploadHost) === -1) {
+                    const timing = window.performance.timing;
+                    responseJson = {
+                        requestStart: timing.requestStart,
+                        responseStart: timing.responseStart,
+                        responseEnd: timing.responseEnd,
+                        responseText: xhr.responseText,
+                        responseURL: xhr.responseURL,
+                        status: xhr.status
+                    };
+                    httpInfo.res.push(responseJson);
+                }
+            }
+        } else {
+            const timing = window.performance.timing;
+            responseJson = {
+                requestStart: timing.requestStart,
+                responseStart: timing.responseStart,
+                responseEnd: timing.responseEnd,
+                responseURL: xhr.responseURL,
+                status: xhr.status,
+                statusText: xhr.statusText,
+            };
+            errorInfo.http.push(responseJson);
+        }
+    }
+
+});
+
+// 移动端关闭窗口响应（PC 端 chrome 暂时无法监听）
+window.addEventListener('pagehide', function (event) {
+    uploadErrorJsRes();
+});
+
+// 每 20 秒上传一次
+clearInterval(timer);
+timer = setInterval(function () {
+    // 上传错误 js 和 res 的错误
+    uploadErrorJsRes();
+    // 上传请求信息
+    uploadHttpInfo();
 }, 1000 * 20);
 
-function uploadData() {
+function uploadHttpInfo() {
+    if (!httpInfo.req.length && !httpInfo.res.length) {
+        return;
+    }
+    requsetData({
+        url: logUploadUrl.http,
+        data: httpInfo,
+        success: function () {
+            httpInfo.req = httpInfo.res = [];
+        }
+    });
+}
+
+function uploadErrorJsRes() {
+    if (!errorInfo.js.length && !errorInfo.res.length && !errorInfo.http.length) {
+        return;
+    }
     requsetData({
         url: logUploadUrl.error,
-        data: errorInfo
+        data: errorInfo,
+        success: function () {
+            errorInfo.js = errorInfo.res = errorInfo.http = [];
+        }
     });
 }
 
